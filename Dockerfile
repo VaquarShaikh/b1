@@ -1,11 +1,21 @@
-FROM eclipse-temurin:17-jdk-alpine
-     
+FROM maven:3.9.14-eclipse-temurin-17-alpine AS build
+
+WORKDIR /app
+
+COPY pom.xml .
+
+RUN mvn -B -q -DskipTests dependency:go-offline
+
+COPY src ./src
+
+RUN mvn clean package -DskipTests
+
+FROM eclipse-temurin:17-jre-alpine 
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar /app/app.jar
+
 EXPOSE 8080
-  
-ENV APP_HOME /usr/src/app
 
-COPY target/*.jar $APP_HOME/app.jar
-
-WORKDIR $APP_HOME
-
-CMD ["java", "-jar", "app.jar"]
+ENTRYPOINT [ "java", "-jar", "app.jar" ]
