@@ -1,0 +1,144 @@
+---
+#mysql-secret
+apiVersion: v1
+kind: Secret
+metadata:
+    name: vaq-secret
+type: Opaque
+data:
+    MYSQL_ROOT_PASSWORD: VGVzdEAxMjM=
+---
+#mysql configmap
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: vaq-cfg
+data:
+    MYSQL_DATABASE: "testdb"
+---
+#persistentVolumeClaim
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: vaq-pvc
+spec:
+    accessModes:
+        - ReadWriteOnce
+    resources:
+        requests:
+            storage: 5Gi
+---
+#mysql deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: mysql-deployment
+spec:
+    selector:
+        matchLabels:
+            app: mysql
+    template:
+        metadata:
+            labels:
+                app: mysql
+        spec:
+            containers:
+                - name: mysql
+                  image: mysql:8
+                  resources:
+                      requests:
+                          memory: "512Mi"
+                          cpu: "512m"
+                      limits:
+                          memory: "1Gi"
+                          cpu: "1"
+                  env:
+                      - name: MYSQL_ROOT_PASSWORD
+                        valueFrom:
+                            secretKeyRef:
+                                name: vaq-secret
+                                key: MYSQL_ROOT_PASSWORD
+                      - name: MYSQL_DATABASE
+                        valueFrom:
+                            configMapKeyRef:
+                                name: vaq-cfg
+                                key: MYSQL_DATABASE
+                  ports:
+                      - containerPort: 3306
+                        name: mysql
+                  volumeMounts:
+                      - mountPath: /var/lib/mysql
+                        name: mysql-data
+            volumes:
+                - name: mysql-data
+                  persistentVolumeClaim:
+                      claimName: vaq-pvc
+---
+# mysql service
+
+apiVersion: v1
+kind: Service
+metadata:
+    name: mysql-svc
+spec:
+    ports:
+        - port: 3306
+          targetPort: 3306
+    selector:
+        app: mysql
+---
+#bankapp deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: bankapp-deployment
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: bankapp
+    template:
+        metadata:
+            labels:
+                app: bankapp
+        spec:
+            containers:
+                - name: bankappdb
+                  image: infectedshawarma/bankapp:v1
+                  resources:
+                      requests:
+                          memory: "256Mi"
+                          cpu: "256m"
+                      limits:
+                          memory: "512Mi"
+                          cpu: "512m"
+                  env:
+                      - name: SPRING_DATASOURCE_URL
+                        value: jdbc:mysql://mysql-svc:3306/testdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+                      - name: SPRING_DATASOURCE_USERNAME
+                        value: root
+                      - name: SPRING_DATASOURCE_PASSWORD
+                        valueFrom:
+                            secretKeyRef:
+                                name: vaq-secret
+                                key: MYSQL_ROOT_PASSWORD
+                  ports:
+                      - containerPort: 8080
+---
+#bankapp service
+
+apiVersion: v1
+kind: Service
+metadata:
+    name: bankapp-svc
+spec:
+    type: NodePort
+    ports:
+        - port: 8080
+          targetPort: 8080
+    selector:
+        app: bankapp
