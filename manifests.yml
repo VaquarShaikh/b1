@@ -108,7 +108,7 @@ spec:
         spec:
             containers:
                 - name: bankappdb
-                  image: infectedshawarma/bankapp:v1
+                  image: infectedshawarma/bankapp:v23
                   resources:
                       requests:
                           memory: "256Mi"
